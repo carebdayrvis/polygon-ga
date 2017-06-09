@@ -1,0 +1,140 @@
+
+<html>
+<body>
+
+	<canvas height="1000" width="1900" id="polygons"></canvas>
+	<script>
+
+	const maxSides = 20
+
+	let firstGeneration = seedGeneration(40)
+
+	selectFromGeneration(firstGeneration)
+
+	function selectFromGeneration(gen) {
+		let generation = gen.map(o => assignFitness(o)).sort(sortByFitness)
+
+		// Remove bottom 25%
+		generation.splice(0, generation.length * .25)
+
+		// Each has a 50% chance of reproducing
+
+		let parents = generation.filter(() => (Math.floor(Math.random() * 2) + 1) % 2 == 0)
+
+		console.log(parents)
+
+
+
+
+
+
+
+
+
+		drawGeneration(document.getElementById("polygons"), parents.sort(sortByFitness))
+	}
+ 
+
+
+
+
+
+	function assignFitness(org) {
+		let desiredColor = [255, 0, 0]
+
+		let color = org.slice(1, 4)
+		let numberOfSides = org[0]
+
+		let colorDiff = color.map((x, i) => Math.abs(x - desiredColor[i])).reduce((a, b) => a + b, 0)
+
+		let numberOfSidesDiff = Math.abs(numberOfSides - maxSides)
+
+		org.push(colorDiff + (numberOfSides * 10.5))
+
+		return org
+	}
+
+
+	function sortByFitness(a, b) {
+		if (a[4] < b[4]) return 1
+		if (a[4] > b[4]) return -1
+		if (a[4] == b[4]) return 0
+	}
+
+	function seedGeneration(popSize) {
+		let pop = []
+
+		// Random RGB values
+		while (popSize > 0) {
+			let colors = 3
+			let org = [randomSidesValue(maxSides)]
+			while (colors > 0) {
+				org.push(randomColorValue())
+				colors--
+			}
+			popSize--
+			pop.push(org)
+		}
+		return pop
+	}
+
+	function randomColorValue() {
+		return Math.floor(Math.random() * 256)
+	}
+
+	function randomSidesValue(maxSides) {
+		return Math.floor(Math.random() * maxSides) + 3
+	}
+
+	function drawGeneration(el, gen) {
+
+		let opts = {
+			size: 25,
+			startX: 25,
+			startY: 50,
+			rowLength: 10
+		}
+		opts.y = opts.startY
+		opts.x = opts.startX
+
+		let ctx = el.getContext("2d")
+
+
+		el.height = (gen.length / opts.rowLength) * opts.y + opts.size
+		el.width = (opts.size * 2) * opts.rowLength
+		gen.forEach((g, i) => drawOrganism(ctx, g, i + 1, opts))
+	}
+
+	function drawOrganism(ctx, org, n, opts) {
+		// Shamefully adapted from http://scienceprimer.com/drawing-regular-polygons-javascript-canvas
+		let x = opts.x
+		let y = opts.y
+		let size = opts.size
+
+
+		ctx.beginPath();
+		ctx.moveTo (x + size * Math.cos(0), y +  size *  Math.sin(0));
+
+		for (var i = 1; i <= org[0];i += 1) {
+    		ctx.lineTo (x + size * Math.cos(i * 2 * Math.PI / org[0]), y + size * Math.sin(i * 2 * Math.PI / org[0]));
+		}
+
+		ctx.save()
+		ctx.save()
+		ctx.fillStyle = `rgb(${org[1]}, ${org[2]}, ${org[3]})`
+		ctx.fill()
+		ctx.restore()
+
+		opts.x += opts.size * 2
+		if (n % opts.rowLength == 0) {
+			opts.y = (n * opts.startY) / opts.rowLength + opts.startY
+			opts.x = opts.startX
+		}
+	}
+
+
+
+	</script>
+</body>	
+</html>
+
