@@ -2,42 +2,103 @@
 <html>
 <body>
 
-	<canvas height="1000" width="1900" id="polygons"></canvas>
+    <h1 id="pop"></h1>
+    <h1 id="gen"></h1>
+    <h1 id="genSize"></h1>
+    <h1 id="fitness"></h1>
+	<canvas id="polygons"></canvas>
 	<script>
 
-	const maxSides = 20
-
-	let firstGeneration = seedGeneration(40)
-
-	selectFromGeneration(firstGeneration)
-
-	function selectFromGeneration(gen) {
-		let generation = gen.map(o => assignFitness(o)).sort(sortByFitness)
-
-		// Remove bottom 25%
-		generation.splice(0, generation.length * .25)
-
-		// Each has a 50% chance of reproducing
-
-		let parents = generation.filter(() => (Math.floor(Math.random() * 2) + 1) % 2 == 0)
-
-		console.log(parents)
+	const maxSides = 5
 
 
+    
+    let genCount = 0
+    let popSize = 1000
+    let seed = seedGeneration(popSize)
+
+	species(seed, popSize)
+	drawGeneration(document.getElementById("polygons"), seed)
+
+    document.getElementById("pop").innerHTML = `Seed population of ${popSize}`
+    function species(generation, size) {
+        let generationalFitness = 9999
+        let interval = setInterval(() => {
+            if (generationalFitness <= 10) return clearInterval(interval)
+
+            genCount++
+            let newGeneration = selectFromGeneration(generation, popSize)
+            generation = newGeneration
+            console.log(generation)
+            generationalFitness = calculateGenerationalFitness(generation)
+
+            console.log(generationalFitness)
+		    drawGeneration(document.getElementById("polygons"), generation)
+            document.getElementById("gen").innerHTML = `Generation ${genCount}`
+            document.getElementById("genSize").innerHTML = `Population of ${generation.length}`
+            document.getElementById("fitness").innerHTML = `Fitness of ${generationalFitness}`
+        }, 100)
+
+    }
+
+    function calculateGenerationalFitness(generation) {
+        return generation.reduce((a, b) => [0, 0, 0, 0, a[4] + b[4]], [0, 0, 0, 0, 0])[4]
+    }
 
 
+	function selectFromGeneration(generation, popSize) {
+		generation.splice(generation.length - generation.length * .25, generation.length)
+        console.log(generation.length)
 
+		//// Each has a 50% chance of reproducing
+		//let parents = generation.filter(() => coinFlip())
+        let parents = generation
 
+        if (parents.length % 2 != 0) parents.pop() // Sorry :( 
 
+        return reproduce(parents, popSize).map(o => assignFitness(o)).sort(sortByFitness)
 
-
-		drawGeneration(document.getElementById("polygons"), parents.sort(sortByFitness))
 	}
- 
 
+    function reproduce(parents, popSize) {
 
+        let children = []
+        let currentParentIndex = 0
+        while (popSize > 0) {
+            if (currentParentIndex == parents.length - 1) currentParentIndex = 0
+            children.push(child([parents[currentParentIndex], parents[currentParentIndex + 1]]))
+            popSize--
+        }
 
+        return children
 
+    }
+
+    function child(parents) {
+        let child = []
+        for (var i = 0; i < 4; i++) {
+            if (coinFlip()) child.push(parents[1][i])
+            else child.push(parents[0][i])
+        }
+        return mutate(child)
+    }
+
+    function mutate(child) {
+        let index = Math.floor(Math.random() * 4)
+        let value = child[index]
+        if (coinFlip()) {
+            if (index < 1) { // Sides need to be modified differently
+                value += coinFlip() ? 1 : -1
+                if (value < 3) value = 3
+                child[index] = value
+            } else {
+                value += coinFlip() ? 5 : -5
+                //value = coinFlip() ? randomColorValue() : value
+                child[index] = value
+            }
+        }
+        return child
+    }
 
 	function assignFitness(org) {
 		let desiredColor = [255, 0, 0]
@@ -49,15 +110,16 @@
 
 		let numberOfSidesDiff = Math.abs(numberOfSides - maxSides)
 
-		org.push(colorDiff + (numberOfSides * 10.5))
+        let fitness = colorDiff + (numberOfSidesDiff * 5) 
+        if (fitness > 0) org.push(fitness)
+        else org.push(0)
 
 		return org
 	}
 
-
 	function sortByFitness(a, b) {
-		if (a[4] < b[4]) return 1
-		if (a[4] > b[4]) return -1
+        if (a[4] > b[4]) return 1
+		if (a[4] < b[4]) return -1
 		if (a[4] == b[4]) return 0
 	}
 
@@ -75,8 +137,16 @@
 			popSize--
 			pop.push(org)
 		}
-		return pop
+        return pop.map(o => assignFitness(o)).sort(sortByFitness)
 	}
+
+    function coinFlip() {
+        return (Math.floor(Math.random() * 2) + 1) % 2 == 0
+    }
+
+    function randomNumberOfChildren() {
+        return Math.floor(Math.random() * 6) + 1
+    }
 
 	function randomColorValue() {
 		return Math.floor(Math.random() * 256)
@@ -92,7 +162,7 @@
 			size: 25,
 			startX: 25,
 			startY: 50,
-			rowLength: 10
+			rowLength: 50
 		}
 		opts.y = opts.startY
 		opts.x = opts.startX
@@ -101,6 +171,7 @@
 
 
 		el.height = (gen.length / opts.rowLength) * opts.y + opts.size
+        el.height += 100
 		el.width = (opts.size * 2) * opts.rowLength
 		gen.forEach((g, i) => drawOrganism(ctx, g, i + 1, opts))
 	}
