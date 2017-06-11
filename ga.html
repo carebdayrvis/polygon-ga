@@ -1,48 +1,111 @@
-
 <html>
+    <head>
+        <style>
+            html, body {
+                height: 100%;
+                width: 100%;
+                margin: 0;
+            }
+            #canvas-container {
+                padding: 10px;
+                max-height: 90%;
+                overflow-y: scroll;
+            }
+
+            #controls {
+                padding: 10px;
+                box-shadow: 0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23);
+            }
+
+            #controls label {
+                display: block;
+            }
+
+        </style>
+    </head>
 <body>
 
-    <h1 id="pop"></h1>
-    <h1 id="gen"></h1>
-    <h1 id="fitness"></h1>
-    <h1 id="color"></h1>
-    <h1 id="sides"></h1>
-	<canvas id="polygons"></canvas>
+    <div id="controls">
+        <p>A simple genetic algorithm implementation, selecting for number of sides and color in a set of N random polygons.</p>
+        <label>
+            <span>Population Size:</span>
+            <input id="size" type="number" value="1500" min="10" />
+        </label>
+        <label>
+            <span>Target Color:</span>
+            <input id="color" type="color" value="#4988ff" />
+        </label>
+        <label>
+            <span>Target Number of Sides:</span>
+            <input id="sides" type="number" value="6" max="20" min="3" />
+        </label>
+        <label>
+            <span>Bottom percentage to die off:</span>
+            <input id="kill" type="number" value="50" max="100" step="1" min="1" />
+        </label>
+        <div style="clear:both"></div>
+        <br>
+        <button id="run" onclick="run()">Run</button>
+        <br>
+        <br>
+        <div>
+            <div id="generation"></div>
+            <div id="fitness"></div>
+            <br>
+            <div id="done"></div>
+        </div>
+    </div>
+
+
+    <div id="canvas-container">
+	    <canvas id="polygons"></canvas>
+    </div>
 	<script>
 
-	const maxSides = 20
-    const targetSides = 4
+    const INTERVAL = 500
+	const MAX_SIDES = 20
+
+    function run() {
+        let opts = getOptionsFromControls()
+        let seed = seedGeneration(opts)
+
+        console.log(opts)
+
+        hideComplete()
+        disableRun()
+        clearCanvas()
+        drawGeneration(seed)
+        setStats("+", 0)
 
 
-    let targetColor = [255, 0, 0]
-    
-    let genCount = 0
-    let popSize = 1500
-    let seed = seedGeneration(popSize)
+        evolve(opts, seed, (gen, fitness) => {
+            setStats((fitness / gen.length).toPrecision(5), opts.count)
+            drawGeneration(gen)
+        }, () => {
+            showComplete()
+            enableRun()
+        })
 
-	species(seed, popSize)
-	drawGeneration(document.getElementById("polygons"), seed)
 
-    document.getElementById("pop").innerHTML = `Population of ${popSize}`
-    document.getElementById("color").innerHTML = `Ideal Color <div style='display:inline-block;height: 50px; width: 50px; background-color: rgb(${targetColor[0]}, ${targetColor[1]}, ${targetColor[2]})'></div>`
-    document.getElementById("sides").innerHTML = `Ideal Sides of ${targetSides}`
-    function species(generation, size) {
+
+    }
+
+    function evolve(opts, generation, viewCallback, completeCallback) {
         let generationalFitness = 9999
         let interval = setInterval(() => {
             if (generationalFitness == 0) {
-                console.log("Final", generation)
+                completeCallback()
                 return clearInterval(interval)
             }
 
-            genCount++
-            let newGeneration = selectFromGeneration(generation, popSize)
+            opts.count++
+
+            let newGeneration = selectFromGeneration(generation, opts)
             generation = newGeneration
             generationalFitness = calculateGenerationalFitness(generation)
 
-		    drawGeneration(document.getElementById("polygons"), generation)
-            document.getElementById("gen").innerHTML = `Generation ${genCount}`
-            document.getElementById("fitness").innerHTML = `Generational fitness of ${generationalFitness}`
-        }, 500)
+            viewCallback(generation, generationalFitness)
+        }, INTERVAL)
 
     }
 
@@ -51,16 +114,11 @@
     }
 
 
-	function selectFromGeneration(generation, popSize) {
-		generation.splice(generation.length - generation.length * .05, generation.length)
-
-        // TODO: Do not just breed the fittest, randomly select those to breed
-        //let parents = selectParents(generation)
-        let parents = generation
-
-        if (parents.length % 2 != 0) parents.pop() // Sorry :( 
-
-        return reproduce(parents, popSize).map(o => assignFitness(o)).sort(sortByFitness)
+	function selectFromGeneration(generation, opts) {
+        let factor = generation.length * opts.kill
+        console.log(factor)
+		let parents = generation.splice(generation.length - factor, generation.length)
+        return reproduce(parents, opts.size).map(o => assignFitness(o, opts.color, opts.sides)).sort(sortByFitness)
 
 	}
 
@@ -71,7 +129,6 @@
         let currentParentIndex = 0
         while (popSize > 0) {
             let parentIndices = randomParentIndices(parents.length)
-            console.log(parentIndices, parents.length)
             children.push(child([parents[parentIndices[0]], parents[parentIndices[1]]]))
             popSize--
         }
@@ -107,22 +164,19 @@
                 child[index] = value
             } else {
                 value += coinFlip() ? 1 : -1
-                //value = coinFlip() ? randomColorValue() : value
                 child[index] = value
             }
         }
         return child
     }
 
-	function assignFitness(org) {
-		let desiredColor = [255, 0, 0]
-
+	function assignFitness(org, desiredColor, desiredSides) {
 		let color = org.slice(1, 4)
 		let numberOfSides = org[0]
 
 		let colorDiff = color.map((x, i) => Math.abs(x - desiredColor[i])).reduce((a, b) => a + b, 0)
 
-		let numberOfSidesDiff = Math.abs(numberOfSides - targetSides)
+		let numberOfSidesDiff = Math.abs(numberOfSides - desiredSides)
 
         let fitness = colorDiff + (numberOfSidesDiff * 5) 
         if (fitness > 0) org.push(fitness)
@@ -132,26 +186,27 @@
 	}
 
 	function sortByFitness(a, b) {
-        if (a[4] > b[4]) return 1
-		if (a[4] < b[4]) return -1
+        if (a[4] < b[4]) return 1
+        if (a[4] > b[4]) return -1
 		if (a[4] == b[4]) return 0
 	}
 
-	function seedGeneration(popSize) {
+    function seedGeneration(opts) {
 		let pop = []
+        let size = opts.size
 
 		// Random RGB values
-		while (popSize > 0) {
+		while (size > 0) {
 			let colors = 3
-			let org = [randomSidesValue(maxSides)]
+			let org = [randomSidesValue(MAX_SIDES)]
 			while (colors > 0) {
 				org.push(randomColorValue())
 				colors--
 			}
-			popSize--
+			size--
 			pop.push(org)
 		}
-        return pop.map(o => assignFitness(o)).sort(sortByFitness)
+        return pop.map(o => assignFitness(o, opts.color, opts.sides)).sort(sortByFitness)
 	}
 
     function randomBetween(hi, lo) {
@@ -174,12 +229,14 @@
 		return Math.floor(Math.random() * maxSides) + 3
 	}
 
-	function drawGeneration(el, gen) {
+	function drawGeneration(gen) {
+
+        let el = document.getElementById("polygons")
 
 		let opts = {
-			size: 25,
-			startX: 25,
-			startY: 50,
+			size: 10,
+			startX: 10,
+			startY: 20,
 			rowLength: 50
 		}
 		opts.y = opts.startY
@@ -220,6 +277,51 @@
 			opts.x = opts.startX
 		}
 	}
+
+    function clearCanvas() {
+        let canvas = document.getElementById("polygons")
+        let ctx = canvas.getContext("2d")
+        ctx.clearRect(0, 0, canvas.width, canvas.height)
+    }
+        
+
+    function getOptionsFromControls() {
+        return {
+            kill: parseInt(document.getElementById("kill").value) / 100,
+            size: parseInt(document.getElementById("size").value),
+            sides: parseInt(document.getElementById("sides").value),
+            color: getColorControlValue(),
+            count: 0
+        }
+    }
+
+    function setStats(fitness, count) {
+        document.getElementById("fitness").innerHTML = `Avg Fitness: ${fitness}`
+        document.getElementById("generation").innerHTML = `Generation: ${count}`
+    }
+
+    function getColorControlValue() {
+        // ctrl-c, ctrl-v https://stackoverflow.com/questions/36697749/html-get-color-in-rgb
+        let val = document.getElementById("color").value
+        return val.match(/[A-Za-z0-9]{2}/g).map(function(v) { return parseInt(v, 16) })
+    }
+
+    function enableRun() {
+        document.getElementById("run").removeAttribute("disabled")
+    }
+
+    function disableRun() {
+        document.getElementById("run").setAttribute("disabled", true)
+    }
+
+    function showComplete() {
+        document.getElementById("done").innerHTML = "Done!"
+    }
+
+    function hideComplete() {
+        document.getElementById("done").innerHTML = ""
+    }
+
 	</script>
 </body>	
 </html>
