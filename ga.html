@@ -4,40 +4,45 @@
 
     <h1 id="pop"></h1>
     <h1 id="gen"></h1>
-    <h1 id="genSize"></h1>
     <h1 id="fitness"></h1>
+    <h1 id="color"></h1>
+    <h1 id="sides"></h1>
 	<canvas id="polygons"></canvas>
 	<script>
 
-	const maxSides = 5
+	const maxSides = 20
+    const targetSides = 4
 
 
+    let targetColor = [255, 0, 0]
     
     let genCount = 0
-    let popSize = 1000
+    let popSize = 1500
     let seed = seedGeneration(popSize)
 
 	species(seed, popSize)
 	drawGeneration(document.getElementById("polygons"), seed)
 
-    document.getElementById("pop").innerHTML = `Seed population of ${popSize}`
+    document.getElementById("pop").innerHTML = `Population of ${popSize}`
+    document.getElementById("color").innerHTML = `Ideal Color <div style='display:inline-block;height: 50px; width: 50px; background-color: rgb(${targetColor[0]}, ${targetColor[1]}, ${targetColor[2]})'></div>`
+    document.getElementById("sides").innerHTML = `Ideal Sides of ${targetSides}`
     function species(generation, size) {
         let generationalFitness = 9999
         let interval = setInterval(() => {
-            if (generationalFitness <= 10) return clearInterval(interval)
+            if (generationalFitness == 0) {
+                console.log("Final", generation)
+                return clearInterval(interval)
+            }
 
             genCount++
             let newGeneration = selectFromGeneration(generation, popSize)
             generation = newGeneration
-            console.log(generation)
             generationalFitness = calculateGenerationalFitness(generation)
 
-            console.log(generationalFitness)
 		    drawGeneration(document.getElementById("polygons"), generation)
             document.getElementById("gen").innerHTML = `Generation ${genCount}`
-            document.getElementById("genSize").innerHTML = `Population of ${generation.length}`
-            document.getElementById("fitness").innerHTML = `Fitness of ${generationalFitness}`
-        }, 100)
+            document.getElementById("fitness").innerHTML = `Generational fitness of ${generationalFitness}`
+        }, 500)
 
     }
 
@@ -47,11 +52,10 @@
 
 
 	function selectFromGeneration(generation, popSize) {
-		generation.splice(generation.length - generation.length * .25, generation.length)
-        console.log(generation.length)
+		generation.splice(generation.length - generation.length * .05, generation.length)
 
-		//// Each has a 50% chance of reproducing
-		//let parents = generation.filter(() => coinFlip())
+        // TODO: Do not just breed the fittest, randomly select those to breed
+        //let parents = selectParents(generation)
         let parents = generation
 
         if (parents.length % 2 != 0) parents.pop() // Sorry :( 
@@ -60,18 +64,28 @@
 
 	}
 
+
     function reproduce(parents, popSize) {
 
         let children = []
         let currentParentIndex = 0
         while (popSize > 0) {
-            if (currentParentIndex == parents.length - 1) currentParentIndex = 0
-            children.push(child([parents[currentParentIndex], parents[currentParentIndex + 1]]))
+            let parentIndices = randomParentIndices(parents.length)
+            console.log(parentIndices, parents.length)
+            children.push(child([parents[parentIndices[0]], parents[parentIndices[1]]]))
             popSize--
         }
 
         return children
 
+    }
+
+    function randomParentIndices(parentsLength) {
+        let one = randomBetween(parentsLength - 1, 0)
+        let two = randomBetween(parentsLength - 1, 0)
+
+        if (one == two) return randomParentIndices(parentsLength)
+        else return [one, two]
     }
 
     function child(parents) {
@@ -86,13 +100,13 @@
     function mutate(child) {
         let index = Math.floor(Math.random() * 4)
         let value = child[index]
-        if (coinFlip()) {
+        if (randomBetween(10000, 1) < 10) {
             if (index < 1) { // Sides need to be modified differently
                 value += coinFlip() ? 1 : -1
                 if (value < 3) value = 3
                 child[index] = value
             } else {
-                value += coinFlip() ? 5 : -5
+                value += coinFlip() ? 1 : -1
                 //value = coinFlip() ? randomColorValue() : value
                 child[index] = value
             }
@@ -108,7 +122,7 @@
 
 		let colorDiff = color.map((x, i) => Math.abs(x - desiredColor[i])).reduce((a, b) => a + b, 0)
 
-		let numberOfSidesDiff = Math.abs(numberOfSides - maxSides)
+		let numberOfSidesDiff = Math.abs(numberOfSides - targetSides)
 
         let fitness = colorDiff + (numberOfSidesDiff * 5) 
         if (fitness > 0) org.push(fitness)
@@ -139,6 +153,10 @@
 		}
         return pop.map(o => assignFitness(o)).sort(sortByFitness)
 	}
+
+    function randomBetween(hi, lo) {
+        return Math.floor(Math.random() * hi) + lo
+    }
 
     function coinFlip() {
         return (Math.floor(Math.random() * 2) + 1) % 2 == 0
@@ -202,9 +220,6 @@
 			opts.x = opts.startX
 		}
 	}
-
-
-
 	</script>
 </body>	
 </html>
